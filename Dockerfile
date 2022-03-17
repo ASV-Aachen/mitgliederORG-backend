@@ -13,15 +13,6 @@ RUN apk update \
     git \
     && update-ca-certificates
 
-FROM base AS dev
-WORKDIR /app
-
-RUN go get -u github.com/cosmtrek/air && go install github.com/go-delve/delve/cmd/dlv@latest
-EXPOSE 5000
-EXPOSE 2345
-
-ENTRYPOINT ["air"]
-
 FROM base AS builder
 WORKDIR /app
 
@@ -29,11 +20,11 @@ COPY . /app
 RUN go mod download \
     && go mod verify
 
-RUN go build -o api -a .
+RUN go build -o main -a .
 
 FROM alpine:latest as prod
 
-COPY --from=builder /app/api /usr/local/bin/api
+COPY --from=builder /app/main /usr/local/bin/main
 EXPOSE 5000
 
-ENTRYPOINT ["/usr/local/bin/api"]
+ENTRYPOINT ["/usr/local/bin/main"]
