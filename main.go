@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,6 +15,11 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
+
+	"bytes"
+	"net/http"
+
+	"github.com/Nerzal/gocloak/v11"
 )
 
 // ------------------------------------------------------------------------------------------------------------
@@ -22,16 +28,24 @@ var MariaDB *sql.DB
 var PostgresDB *sql.DB
 var err error
 
+// MariaDB
 var DB_USER string = os.Getenv("DB_USER")
 var DB_PASSWORD string = os.Getenv("DB_PASSWORD")
 var DB_NAME string = os.Getenv("DB_NAME")
 var DB_URL string = os.Getenv("DB_URL")
 
+// Postgres
 var Postgreshost string = os.Getenv("Postgreshost")
 var Postgresport int = 5432
 var Postgresuser string = os.Getenv("Postgresuser")
 var Postgrespassword string = os.Getenv("Postgrespassword")
 var Postgresdbname string = os.Getenv("Postgresdbname")
+
+// keycloak
+var hostname string = os.Getenv("keycloak_hostname")
+var clientID string = os.Getenv("keycloak_clientID")
+var clientSecret string = os.Getenv("keycloak_clientSecret")
+var realm string = os.Getenv("keycloak_realm")
 
 // ------------------------------------------------------------------------------------------------------------
 // SQL Structs
@@ -68,6 +82,38 @@ type arbeitsstunden struct {
 	EMAIL      string `json:"email"`
 }
 
+func sendToWeb(Mail, first_name, last_name, Entrydate, status, token string) bool {
+	path := "webpage/api/addMember"
+
+	values := map[string]string{
+		"mail":       Mail,
+		"first_name": first_name,
+		"last_name":  last_name,
+		"entrydate":  Entrydate,
+		"status":     status,
+	}
+
+	json_data, err := json.Marshal(values)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	req, err := http.NewRequest("POST", path, bytes.NewBuffer(json_data))
+
+	req.Header.Add("Authorization", token)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	return true
+}
+
 // ------------------------------------------------------------------------------------------------------------
 func main() {
 	// Setup DATABASE
@@ -97,8 +143,31 @@ func main() {
 		helmet.New(),
 
 		// Check if User is Part of Keyclaok and is logged in
-		// TODO: to implement
 		func(c *fiber.Ctx) error {
+			token := c.Cookies("keycloakToken")
+
+			client := gocloak.NewClient(hostname)
+
+			rptResult, err := client.RetrospectToken(context.Background(), token, clientID, clientSecret, realm)
+			if err != nil {
+				print("Inspection failed:" + err.Error())
+				return c.SendStatus(fiber.StatusUnauthorized)
+			}
+
+			if !*rptResult.Active {
+				print("Token is not active")
+				return c.SendStatus(fiber.StatusUnauthorized)
+			}
+
+			UserInfo, errp := client.GetUserInfo(context.Background(), token, realm)
+			if errp != nil {
+				print("Inspection failed:" + err.Error())
+				return c.SendStatus(fiber.StatusUnauthorized)
+			}
+			
+			// TODO: Check for correct Group
+			print(UserInfo)
+
 			return c.Next()
 		},
 	)
@@ -205,14 +274,39 @@ func main() {
 	})
 	api.Post("/", func(c *fiber.Ctx) error {
 		// Add new User
-		return c.SendString("Add new User")
+
+		payload := struct {
+			Mail       string `json:"mail"`
+			First_name string `json:"first_name"`
+			Last_name  string `json:"last_name"`
+			EntryDate  string `json:"entryDate"`
+			Status     string `json:"status"`
+		}{}
+
+		if err := c.BodyParser(&payload); err != nil {
+			return c.SendStatus(400)
+		}
+		token := c.Cookies("keycloakToken")
+
+		success := sendToWeb(payload.Mail, payload.First_name, payload.Last_name, payload.EntryDate, payload.Status, token)
+
+		// TODO: in ArbeitsstundenDB eintragen
+
+		if success {
+			return c.Status(fiber.StatusOK).SendString("Nutzer angelegt")
+		} else {
+			return c.Status(fiber.StatusBadRequest).SendString("Es konnte kein Nutzer angelegt werden")
+		}
 	})
+
 	api.Delete("/", func(c *fiber.Ctx) error {
 		// Remove a User
 		return c.SendString("Remove a User")
 	})
 	api.Patch("/", func(c *fiber.Ctx) error {
-		// Change a User
+		// update Users in ArbeitsstundenDB
+		
+
 		return c.SendString("Change a User")
 	})
 
