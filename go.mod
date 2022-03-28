@@ -10,8 +10,19 @@ require (
 )
 
 require (
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
+	github.com/gofiber/utils v0.0.10 // indirect
+	github.com/gorilla/schema v1.1.0 // indirect
+	github.com/mattn/go-colorable v0.1.7 // indirect
+	github.com/mattn/go-isatty v0.0.12 // indirect
+	gopkg.in/resty.v1 v1.10.3 // indirect
+)
+
+require (
+	github.com/Nerzal/gocloak v1.0.0
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/go-resty/resty/v2 v2.6.0 // indirect
+	github.com/gofiber/fiber v1.14.6
 	github.com/gofiber/fiber/v2 v2.28.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.1.0 // indirect
 	github.com/klauspost/compress v1.14.1 // indirect
