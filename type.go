@@ -7,7 +7,7 @@ import ()
 // SQL Structs
 type jsonStruct struct {
 	Website        []website        `json:"WEBSITE"`
-	Keycloak       []keycloak       `json:"KEYCLOAK"`
+	Keycloak       []keycloak_user       `json:"KEYCLOAK"`
 	Arbeitsstunden []arbeitsstunden `json:"ARBEITSSTUNDEN"`
 }
 
@@ -22,7 +22,7 @@ type website struct {
 	STATUS        string `json:"status"`
 }
 
-type keycloak struct {
+type keycloak_user struct {
 	ID             string `json:"id"`
 	EMAIL          string `json:"Email"`
 	EMAIL_VERIFIED []byte `json:"Email_verified"`

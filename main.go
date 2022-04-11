@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -19,7 +18,7 @@ import (
 	"bytes"
 	"net/http"
 
-	"github.com/Nerzal/gocloak/v11"
+	"github.com/ASV-Aachen/mitgliederDB-backend/keycloak"
 )
 
 // ------------------------------------------------------------------------------------------------------------
@@ -40,47 +39,6 @@ var Postgresport int = 5432
 var Postgresuser string = os.Getenv("Postgresuser")
 var Postgrespassword string = os.Getenv("Postgrespassword")
 var Postgresdbname string = os.Getenv("Postgresdbname")
-
-// keycloak
-var hostname string = os.Getenv("keycloak_hostname")
-var clientID string = os.Getenv("keycloak_clientID")
-var clientSecret string = os.Getenv("keycloak_clientSecret")
-var realm string = os.Getenv("keycloak_realm")
-
-// ------------------------------------------------------------------------------------------------------------
-// SQL Structs
-type jsonStruct struct {
-	Website        []website        `json:"WEBSITE"`
-	Keycloak       []keycloak       `json:"KEYCLOAK"`
-	Arbeitsstunden []arbeitsstunden `json:"ARBEITSSTUNDEN"`
-}
-
-type website struct {
-	ID            string `json:"id"`
-	USERNAME      string `json:"username"`
-	FIRST_NAME    string `json:"first_name"`
-	LAST_NAME     string `json:"last_name"`
-	EMAIL         string `json:"email"`
-	IS_ACTIVE     bool   `json:"is_active"`
-	PROFILE_IMAGE string `json:"profile_image"`
-	STATUS        string `json:"status"`
-}
-
-type keycloak struct {
-	ID             string `json:"id"`
-	EMAIL          string `json:"Email"`
-	EMAIL_VERIFIED []byte `json:"Email_verified"`
-	ENABLED        []byte `json:"enabled"`
-	FIRST_NAME     string `json:"first_name"`
-	LAST_NAME      string `json:"last_name"`
-	USERNAME       string `json:"username"`
-}
-
-type arbeitsstunden struct {
-	FIRST_NAME string `json:"first_name"`
-	LAST_NAME  string `json:"last_name"`
-	EMAIL      string `json:"email"`
-}
 
 func sendToWeb(Mail, first_name, last_name, Entrydate, status, token string) bool {
 	path := "webpage/api/addMember"
@@ -144,31 +102,47 @@ func main() {
 
 		// Check if User is Part of Keyclaok and is logged in
 		func(c *fiber.Ctx) error {
-			token := c.Cookies("keycloakToken")
+			token := c.Cookies("token")
+			if token == "" {
+				log.Fatalf("Token nicht gesendet")
+				return c.SendStatus(fiber.StatusUnauthorized)
+			}
 
-			client := gocloak.NewClient(hostname)
+			// token = strings.Replace(token, "Bearer ", "", 1)
 
-			rptResult, err := client.RetrospectToken(context.Background(), token, clientID, clientSecret, realm)
+			ID, err := keycloak.Get_UserID(token)
+
 			if err != nil {
-				print("Inspection failed:" + err.Error())
-				return c.SendStatus(fiber.StatusUnauthorized)
+				log.Default().Printf(err.Error())
+				return c.SendStatus(401)
 			}
 
-			if !*rptResult.Active {
-				print("Token is not active")
-				return c.SendStatus(fiber.StatusUnauthorized)
+			// Oauth login -> new Token
+			newToken, err := keycloak.Get_AdminToken()
+
+			if err != nil {
+				log.Default().Printf(err.Error())
+				return c.SendStatus(400)
 			}
 
-			UserInfo, errp := client.GetUserInfo(context.Background(), token, realm)
-			if errp != nil {
-				print("Inspection failed:" + err.Error())
-				return c.SendStatus(fiber.StatusUnauthorized)
-			}
-			
-			// TODO: Check for correct Group
-			print(UserInfo)
+			userGroupes, err := keycloak.Get_UserGroups(newToken, ID)
 
-			return c.Next()
+			if err != nil {
+				log.Default().Printf(err.Error())
+				return c.SendStatus(416)
+			}
+
+			userGroups := [5]string{
+				"Bierwart",
+				"Entwickler",
+				"Admin",
+			}
+
+			if keycloak.Check_IsUserPartOfGroup(userGroups, userGroupes) {
+				return c.Next()
+			}
+
+			return c.SendStatus(417)
 		},
 	)
 
@@ -179,7 +153,7 @@ func main() {
 
 	api.Get("/", func(c *fiber.Ctx) error {
 		var erg_website [1000]website
-		var erg_keycloak [1000]keycloak
+		var erg_keycloak [1000]keycloak_user
 		var erg_arbeit [1000]arbeitsstunden
 
 		var erg jsonStruct = jsonStruct{}
@@ -221,7 +195,7 @@ func main() {
 
 		counter = 0
 		for keycloakRows.Next() {
-			var next keycloak
+			var next keycloak_user
 			err := keycloakRows.Scan(
 				&next.ID,
 				&next.EMAIL,
@@ -272,6 +246,7 @@ func main() {
 		c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSONCharsetUTF8)
 		return json.NewEncoder(c.Response().BodyWriter()).Encode(erg)
 	})
+	
 	api.Post("/", func(c *fiber.Ctx) error {
 		// Add new User
 
@@ -305,7 +280,6 @@ func main() {
 	})
 	api.Patch("/", func(c *fiber.Ctx) error {
 		// update Users in ArbeitsstundenDB
-		
 
 		return c.SendString("Change a User")
 	})
