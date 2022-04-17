@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,7 +16,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 
-	"bytes"
 	"net/http"
 
 	"github.com/ASV-Aachen/mitgliederDB-backend/keycloak"
@@ -40,40 +40,11 @@ var Postgresuser string = os.Getenv("Postgresuser")
 var Postgrespassword string = os.Getenv("Postgrespassword")
 var Postgresdbname string = os.Getenv("Postgresdbname")
 
-func sendToWeb(Mail, first_name, last_name, Entrydate, status, token string) bool {
-	path := "webpage/api/addMember"
-
-	values := map[string]string{
-		"mail":       Mail,
-		"first_name": first_name,
-		"last_name":  last_name,
-		"entrydate":  Entrydate,
-		"status":     status,
-	}
-
-	json_data, err := json.Marshal(values)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	req, err := http.NewRequest("POST", path, bytes.NewBuffer(json_data))
-
-	req.Header.Add("Authorization", token)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatal(err)
-		return false
-	}
-	defer resp.Body.Close()
-
-	return true
-}
-
 // ------------------------------------------------------------------------------------------------------------
 func main() {
+
+	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
 	// Setup DATABASE
 	MariaDB, err = sql.Open("mysql", DB_USER+":"+DB_PASSWORD+"@tcp("+DB_URL+":3306"+")/"+DB_NAME)
 	if err != nil {
@@ -133,7 +104,7 @@ func main() {
 			}
 
 			userGroups := [5]string{
-				"Bierwart",
+				"Schriftwart",
 				"Entwickler",
 				"Admin",
 			}
@@ -142,7 +113,7 @@ func main() {
 				return c.Next()
 			}
 
-			return c.SendStatus(417)
+			return c.SendStatus(401)
 		},
 	)
 
@@ -174,15 +145,15 @@ func main() {
 				&next.LAST_NAME,
 				&next.EMAIL,
 				&next.IS_ACTIVE,
-				&next.PROFILE_IMAGE,
+				// &next.PROFILE_IMAGE,
 				&next.STATUS)
 			if err != nil {
 				print("Error in WebsiteSQL: ")
-				log.Fatal(err)
+				log.Default().Printf(err.Error())
+			} else {
+				erg_website[counter] = next
+				counter++
 			}
-
-			erg_website[counter] = next
-			counter++
 		}
 		websiteRows.Close()
 		erg.Website = erg_website[:counter]
@@ -246,42 +217,19 @@ func main() {
 		c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSONCharsetUTF8)
 		return json.NewEncoder(c.Response().BodyWriter()).Encode(erg)
 	})
-	
-	api.Post("/", func(c *fiber.Ctx) error {
-		// Add new User
-
-		payload := struct {
-			Mail       string `json:"mail"`
-			First_name string `json:"first_name"`
-			Last_name  string `json:"last_name"`
-			EntryDate  string `json:"entryDate"`
-			Status     string `json:"status"`
-		}{}
-
-		if err := c.BodyParser(&payload); err != nil {
-			return c.SendStatus(400)
-		}
-		token := c.Cookies("keycloakToken")
-
-		success := sendToWeb(payload.Mail, payload.First_name, payload.Last_name, payload.EntryDate, payload.Status, token)
-
-		// TODO: in ArbeitsstundenDB eintragen
-
-		if success {
-			return c.Status(fiber.StatusOK).SendString("Nutzer angelegt")
-		} else {
-			return c.Status(fiber.StatusBadRequest).SendString("Es konnte kein Nutzer angelegt werden")
-		}
-	})
 
 	api.Delete("/", func(c *fiber.Ctx) error {
 		// Remove a User
-		return c.SendString("Remove a User")
+		// TODO:
+		return c.SendString("TODO: Remove a User")
 	})
-	api.Patch("/", func(c *fiber.Ctx) error {
-		// update Users in ArbeitsstundenDB
 
-		return c.SendString("Change a User")
+	// Sync all users every 3 hours
+
+	api.Patch("/", func(c *fiber.Ctx) error {
+		// Sync all Users
+
+		return c.SendString("TODO: Sync all Users")
 	})
 
 	log.Fatal(app.Listen(":5000"))

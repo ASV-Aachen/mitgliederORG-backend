@@ -1,25 +1,22 @@
 package main
 
-import ()
-
-
 // ------------------------------------------------------------------------------------------------------------
 // SQL Structs
 type jsonStruct struct {
 	Website        []website        `json:"WEBSITE"`
-	Keycloak       []keycloak_user       `json:"KEYCLOAK"`
+	Keycloak       []keycloak_user  `json:"KEYCLOAK"`
 	Arbeitsstunden []arbeitsstunden `json:"ARBEITSSTUNDEN"`
 }
 
 type website struct {
-	ID            string `json:"id"`
-	USERNAME      string `json:"username"`
-	FIRST_NAME    string `json:"first_name"`
-	LAST_NAME     string `json:"last_name"`
-	EMAIL         string `json:"email"`
-	IS_ACTIVE     bool   `json:"is_active"`
-	PROFILE_IMAGE string `json:"profile_image"`
-	STATUS        string `json:"status"`
+	ID         string `json:"id"`
+	USERNAME   string `json:"username"`
+	FIRST_NAME string `json:"first_name"`
+	LAST_NAME  string `json:"last_name"`
+	EMAIL      string `json:"email"`
+	IS_ACTIVE  bool   `json:"is_active"`
+	// PROFILE_IMAGE string `json:"profile_image"`
+	STATUS string `json:"status"`
 }
 
 type keycloak_user struct {
@@ -37,5 +34,3 @@ type arbeitsstunden struct {
 	LAST_NAME  string `json:"last_name"`
 	EMAIL      string `json:"email"`
 }
-
-

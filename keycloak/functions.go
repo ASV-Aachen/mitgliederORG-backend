@@ -18,7 +18,7 @@ var realm string = os.Getenv("keycloak_realm")
 
 func Get_AdminToken() (string, error) {
 
-	url := "http://" + hostname + "/sso/auth/realms/" + realm + "/protocol/openid-connect/token"
+	url := "https://" + hostname + "/sso/auth/realms/" + realm + "/protocol/openid-connect/token"
 
 	payload := strings.NewReader("client_id=" + clientID + "&grant_type=client_credentials&client_secret=" + clientSecret)
 
@@ -26,12 +26,11 @@ func Get_AdminToken() (string, error) {
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	res, err := http.DefaultClient.Do(req)
+	res, _ := http.DefaultClient.Do(req)
 
-	if err != nil {
-		log.Default().Printf(err.Error())
+	if res.Status != "200 OK" {
 		log.Default().Printf("client_id=" + clientID + "&grant_type=client_credentials&client_secret=" + clientSecret)
-		return "", errors.New(err.Error())
+		return "", errors.New("")
 	}
 
 	defer res.Body.Close()
@@ -41,11 +40,13 @@ func Get_AdminToken() (string, error) {
 	answer := AdminToken{}
 	json.Unmarshal(body, &answer)
 
+	log.Default().Printf(res.Status)
+
 	return answer.AccessToken, nil
 }
 
 func Get_UserID(token string) (string, error) {
-	path := "http://" + hostname + "/sso/auth/realms/" + realm + "/protocol/openid-connect/userinfo"
+	path := "https://" + hostname + "/sso/auth/realms/" + realm + "/protocol/openid-connect/userinfo"
 
 	// payload := strings.NewReader("client_id=backend-check&grant_type=client_credentials")
 
@@ -54,15 +55,11 @@ func Get_UserID(token string) (string, error) {
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Authorization", "Bearer "+token)
 
-	resp, err := http.DefaultClient.Do(req)
-
-	if err != nil {
-		log.Default().Printf(err.Error())
-		return "", errors.New(err.Error())
-	}
+	resp, _ := http.DefaultClient.Do(req)
+	
 	defer resp.Body.Close()
 
-	if resp.Status != "200" {
+	if resp.Status != "200 OK" {
 		log.Default().Printf(resp.Status)
 		log.Default().Printf(path)
 		log.Default().Printf("[" + token + "]")
@@ -80,7 +77,7 @@ func Get_UserID(token string) (string, error) {
 
 func Get_UserGroups(token string, ID string) (GroupToken, error) {
 
-	url := "http://" + hostname + "/sso/auth/admin/realms/" + realm + "/users/ " + ID + "/groups"
+	url := "https://" + hostname + "/sso/auth/admin/realms/" + realm + "/users/" + ID + "/groups"
 
 	req, _ := http.NewRequest("GET", url, nil)
 
@@ -89,7 +86,7 @@ func Get_UserGroups(token string, ID string) (GroupToken, error) {
 
 	res, err := http.DefaultClient.Do(req)
 
-	if err != nil {
+	if res.Status != "200 OK" {
 		log.Default().Printf(err.Error())
 		return nil, errors.New(err.Error())
 	}
@@ -105,8 +102,9 @@ func Get_UserGroups(token string, ID string) (GroupToken, error) {
 }
 
 func Check_IsUserPartOfGroup(gruppen [5]string, UserGruppen GroupToken) bool {
-	for _, groupName := range gruppen{
+	for _, groupName := range gruppen {
 		for _, token := range UserGruppen {
+			log.Default().Printf(token.Name)
 			if groupName == token.Name {
 				return true
 			}
