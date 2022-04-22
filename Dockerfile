@@ -25,6 +25,7 @@ RUN go build -o main -a .
 FROM alpine:latest as prod
 
 COPY --from=builder /app/main /usr/local/bin/main
+COPY ./db/ /usr/local/bin/sql/
 EXPOSE 5000
 
 ENTRYPOINT ["/usr/local/bin/main"]
