@@ -228,6 +228,28 @@ func main() {
 
 	api.Patch("/", func(c *fiber.Ctx) error {
 		// Sync all Users
+		url := "http://webpage:8080/api/sync"
+
+		req, _ := http.NewRequest("GET", url, nil)
+		req.Header.Add("Authorization", "Bearer "+c.Cookies("token"))
+		res, err := http.DefaultClient.Do(req)
+
+		if err != nil {
+			c.SendString(err.Error())
+			panic(err)
+		}
+
+		if res.Status != "200 OK" {
+			c.SendString(res.Status)
+		}
+
+		defer res.Body.Close()
+
+		// Sync ArbeitsstundenDB
+		// TODO:
+
+		// Sync Bierkasse
+		// TODO:
 
 		return c.SendString("TODO: Sync all Users")
 	})
