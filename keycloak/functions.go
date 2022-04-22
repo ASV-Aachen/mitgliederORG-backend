@@ -84,11 +84,11 @@ func Get_UserGroups(token string, ID string) (GroupToken, error) {
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Authorization", "Bearer "+token)
 
-	res, err := http.DefaultClient.Do(req)
+	res, _ := http.DefaultClient.Do(req)
 
 	if res.Status != "200 OK" {
-		log.Default().Printf(err.Error())
-		return nil, errors.New(err.Error())
+		log.Default().Printf(res.Status)
+		return nil, errors.New(res.Status)
 	}
 
 	defer res.Body.Close()
