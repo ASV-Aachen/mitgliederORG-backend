@@ -3,9 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"log"
-	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -18,6 +16,7 @@ import (
 
 	"net/http"
 
+	"github.com/ASV-Aachen/mitgliederDB-backend/database"
 	"github.com/ASV-Aachen/mitgliederDB-backend/keycloak"
 )
 
@@ -27,37 +26,21 @@ var MariaDB *sql.DB
 var PostgresDB *sql.DB
 var err error
 
-// MariaDB
-var DB_USER string = os.Getenv("DB_USER")
-var DB_PASSWORD string = os.Getenv("DB_PASSWORD")
-var DB_NAME string = os.Getenv("DB_NAME")
-var DB_URL string = os.Getenv("DB_URL")
-
-// Postgres
-var Postgreshost string = os.Getenv("Postgreshost")
-var Postgresport int = 5432
-var Postgresuser string = os.Getenv("Postgresuser")
-var Postgrespassword string = os.Getenv("Postgrespassword")
-var Postgresdbname string = os.Getenv("Postgresdbname")
-
 // ------------------------------------------------------------------------------------------------------------
 func main() {
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
-	// Setup DATABASE
-	MariaDB, err = sql.Open("mysql", DB_USER+":"+DB_PASSWORD+"@tcp("+DB_URL+":3306"+")/"+DB_NAME)
-	if err != nil {
-		panic(err.Error())
-	}
-	defer MariaDB.Close()
+	// Setup DATABASEs
+	// MariaDB := database.SetUpMariaDB_admin()
+	MariaDB = database.SetUpMariaDB()
+	PostgresDB := database.SetUpPostgres()
 
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable", Postgreshost, Postgresport, Postgresuser, Postgrespassword, Postgresdbname)
-	// PostgresDB, err := sql.Open("postgres", Postgresuser+":"+Postgrespassword+"@tcp("+Postgreshost+":5432"+")/"+Postgresdbname)
-	PostgresDB, err := sql.Open("postgres", psqlInfo)
-	if err != nil {
-		panic(err)
-	}
+	// Setup Views
+	// database.ExecuteFile(MariaDB, "MariaDB_createView.sql")
+	database.ExecuteFile(PostgresDB, "PostgresSQL_createView.sql")
+
+	defer MariaDB.Close()
 	defer PostgresDB.Close()
 
 	// Setup
