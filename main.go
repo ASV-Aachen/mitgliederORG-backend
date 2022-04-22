@@ -37,7 +37,12 @@ func main() {
 	PostgresDB := database.SetUpPostgres()
 
 	// Setup Views
-	// database.ExecuteFile(MariaDB, "MariaDB_createView.sql")
+	database.ExecuteFile(MariaDB, "MariaDB_createView_Mitglieder.sql")
+	database.ExecuteFile(MariaDB, "MariaDB_createView_Keycloak.sql")
+
+	// MariaDB.Exec("CREATE OR REPLACE VIEW Mitglieder.`Keycloak` AS SELECT sso.ID, sso.EMAIL, sso.EMAIL_VERIFIED, sso.ENABLED, sso.FIRST_NAME, sso.LAST_NAME, sso.USERNAME FROM KeycloackDB.USER_ENTITY sso;")
+	// MariaDB.Exec("CREATE OR REPLACE VIEW Mitglieder.`Website` AS SELECT web.id, web.username, web.first_name, web.last_name, web.email, web.is_active, member.status FROM websiteDB.auth_user web LEFT JOIN websiteDB.member_profile member ON member.user_id = web.id;")
+
 	database.ExecuteFile(PostgresDB, "PostgresSQL_createView.sql")
 
 	defer MariaDB.Close()
