@@ -158,8 +158,7 @@ func main() {
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
 	// Setup DATABASEs
-	// MariaDB := database.SetUpMariaDB_admin()
-	MariaDB = database.SetUpMariaDB()
+	MariaDB := database.SetUpMariaDB_admin()
 	PostgresDB := database.SetUpPostgres()
 
 	// Setup Views
@@ -170,6 +169,9 @@ func main() {
 
 	defer MariaDB.Close()
 	defer PostgresDB.Close()
+
+	MariaDB = database.SetUpMariaDB()
+	defer MariaDB.Close()
 
 	// Setup
 	app := fiber.New()
