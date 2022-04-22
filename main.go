@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/ASV-Aachen/mitgliederDB-backend/database"
 	"github.com/ASV-Aachen/mitgliederDB-backend/keycloak"
+	"github.com/google/uuid"
 )
 
 // ------------------------------------------------------------------------------------------------------------
@@ -25,6 +27,130 @@ import (
 var MariaDB *sql.DB
 var PostgresDB *sql.DB
 var err error
+
+func getUserData(MariaDB *sql.DB, PostgresDB *sql.DB) jsonStruct {
+	var erg jsonStruct = jsonStruct{}
+
+	var erg_website [1000]website
+	var erg_keycloak [1000]keycloak_user
+	var erg_arbeit [1000]arbeitsstunden
+
+	websiteRows, err := MariaDB.Query("SELECT * FROM Website;")
+	if err != nil {
+		panic(err)
+	}
+
+	counter := 0
+	for websiteRows.Next() {
+		var next website
+		err := websiteRows.Scan(
+			&next.ID,
+			&next.USERNAME,
+			&next.FIRST_NAME,
+			&next.LAST_NAME,
+			&next.EMAIL,
+			&next.IS_ACTIVE,
+
+			&next.STATUS)
+		if err != nil {
+			print("Error in WebsiteSQL: ")
+			log.Default().Printf(err.Error())
+		} else {
+			erg_website[counter] = next
+			counter++
+		}
+	}
+	websiteRows.Close()
+	erg.Website = erg_website[:counter]
+
+	keycloakRows, err := MariaDB.Query("SELECT * FROM Keycloak;")
+	if err != nil {
+		panic(err)
+	}
+
+	counter = 0
+	for keycloakRows.Next() {
+		var next keycloak_user
+		err := keycloakRows.Scan(
+			&next.ID,
+			&next.EMAIL,
+			&next.EMAIL_VERIFIED,
+			&next.ENABLED,
+			&next.FIRST_NAME,
+			&next.LAST_NAME,
+			&next.USERNAME,
+		)
+		if err != nil {
+			print("Error in KeycloakDB: ")
+			print(err.Error())
+			print("\n")
+
+		}
+		erg_keycloak[counter] = next
+		counter++
+	}
+	keycloakRows.Close()
+	erg.Keycloak = erg_keycloak[:counter]
+
+	arbeitsstundenRows, err := PostgresDB.Query("SELECT * FROM arbeitsstundenmitglieder")
+	if err != nil {
+		print("\n\n ---------------- \n\n")
+		print("Error in Connecting to POSTGRESDB \n")
+		panic(err)
+	}
+
+	counter = 0
+	for arbeitsstundenRows.Next() {
+		var next arbeitsstunden
+		err := arbeitsstundenRows.Scan(
+			&next.FIRST_NAME,
+			&next.LAST_NAME,
+			&next.EMAIL,
+		)
+		if err != nil {
+			print("Error in ArbeitsstundenDB: ")
+			log.Fatal(err)
+		}
+		erg_arbeit[counter] = next
+		counter++
+	}
+	arbeitsstundenRows.Close()
+	erg.Arbeitsstunden = erg_arbeit[:counter]
+
+	return erg
+}
+
+func SendSyncToWebsite(c *fiber.Ctx) {
+	url := "http://webpage:8080/api/sync"
+
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Add("Authorization", "Bearer "+c.Cookies("token"))
+	res, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		c.SendString(err.Error())
+		panic(err)
+	}
+
+	if res.Status != "200 OK" {
+		c.SendString(res.Status)
+	}
+
+	defer res.Body.Close()
+}
+
+func getStatus(s string) string {
+	switch s {
+	case "1":
+		return "PROSPECT"
+	case "2":
+		return "ACTIVE"
+	case "3":
+		return "INACTIVE"
+	default:
+		return "OLD_MAN"
+	}
+}
 
 // ------------------------------------------------------------------------------------------------------------
 func main() {
@@ -39,9 +165,6 @@ func main() {
 	// Setup Views
 	database.ExecuteFile(MariaDB, "MariaDB_createView_Mitglieder.sql")
 	database.ExecuteFile(MariaDB, "MariaDB_createView_Keycloak.sql")
-
-	// MariaDB.Exec("CREATE OR REPLACE VIEW Mitglieder.`Keycloak` AS SELECT sso.ID, sso.EMAIL, sso.EMAIL_VERIFIED, sso.ENABLED, sso.FIRST_NAME, sso.LAST_NAME, sso.USERNAME FROM KeycloackDB.USER_ENTITY sso;")
-	// MariaDB.Exec("CREATE OR REPLACE VIEW Mitglieder.`Website` AS SELECT web.id, web.username, web.first_name, web.last_name, web.email, web.is_active, member.status FROM websiteDB.auth_user web LEFT JOIN websiteDB.member_profile member ON member.user_id = web.id;")
 
 	database.ExecuteFile(PostgresDB, "PostgresSQL_createView.sql")
 
@@ -111,96 +234,7 @@ func main() {
 	})
 
 	api.Get("/", func(c *fiber.Ctx) error {
-		var erg_website [1000]website
-		var erg_keycloak [1000]keycloak_user
-		var erg_arbeit [1000]arbeitsstunden
-
-		var erg jsonStruct = jsonStruct{}
-
-		// Website in Mariadb SELECT * FROM Website;
-		websiteRows, err := MariaDB.Query("SELECT * FROM Website;")
-		if err != nil {
-			panic(err)
-		}
-
-		counter := 0
-		for websiteRows.Next() {
-			var next website
-			err := websiteRows.Scan(
-				&next.ID,
-				&next.USERNAME,
-				&next.FIRST_NAME,
-				&next.LAST_NAME,
-				&next.EMAIL,
-				&next.IS_ACTIVE,
-				// &next.PROFILE_IMAGE,
-				&next.STATUS)
-			if err != nil {
-				print("Error in WebsiteSQL: ")
-				log.Default().Printf(err.Error())
-			} else {
-				erg_website[counter] = next
-				counter++
-			}
-		}
-		websiteRows.Close()
-		erg.Website = erg_website[:counter]
-
-		// Keycloak in MariaDB SELECT * FROM Keycloak;
-		keycloakRows, err := MariaDB.Query("SELECT * FROM Keycloak;")
-		if err != nil {
-			panic(err)
-		}
-
-		counter = 0
-		for keycloakRows.Next() {
-			var next keycloak_user
-			err := keycloakRows.Scan(
-				&next.ID,
-				&next.EMAIL,
-				&next.EMAIL_VERIFIED,
-				&next.ENABLED,
-				&next.FIRST_NAME,
-				&next.LAST_NAME,
-				&next.USERNAME,
-			)
-			if err != nil {
-				print("Error in KeycloakDB: ")
-				print(err.Error())
-				print("\n")
-				// log.Fatal(err)
-			}
-			erg_keycloak[counter] = next
-			counter++
-		}
-		keycloakRows.Close()
-		erg.Keycloak = erg_keycloak[:counter]
-
-		// ArbeitsstundenMitglieder in Postgres SELECT * FROM arbeitsstundenmitglieder;
-		arbeitsstundenRows, err := PostgresDB.Query("SELECT * FROM arbeitsstundenmitglieder")
-		if err != nil {
-			print("\n\n ---------------- \n\n")
-			print("Error in Connecting to POSTGRESDB \n")
-			panic(err)
-		}
-
-		counter = 0
-		for arbeitsstundenRows.Next() {
-			var next arbeitsstunden
-			err := arbeitsstundenRows.Scan(
-				&next.FIRST_NAME,
-				&next.LAST_NAME,
-				&next.EMAIL,
-			)
-			if err != nil {
-				print("Error in ArbeitsstundenDB: ")
-				log.Fatal(err)
-			}
-			erg_arbeit[counter] = next
-			counter++
-		}
-		arbeitsstundenRows.Close()
-		erg.Arbeitsstunden = erg_arbeit[:counter]
+		var erg jsonStruct = getUserData(MariaDB, PostgresDB)
 
 		c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSONCharsetUTF8)
 		return json.NewEncoder(c.Response().BodyWriter()).Encode(erg)
@@ -212,34 +246,91 @@ func main() {
 		return c.SendString("TODO: Remove a User")
 	})
 
-	// Sync all users every 3 hours
-
 	api.Patch("/", func(c *fiber.Ctx) error {
-		// Sync all Users
-		url := "http://webpage:8080/api/sync"
-
-		req, _ := http.NewRequest("GET", url, nil)
-		req.Header.Add("Authorization", "Bearer "+c.Cookies("token"))
-		res, err := http.DefaultClient.Do(req)
-
-		if err != nil {
-			c.SendString(err.Error())
-			panic(err)
-		}
-
-		if res.Status != "200 OK" {
-			c.SendString(res.Status)
-		}
-
-		defer res.Body.Close()
+		// Sync all Users of Webpage
+		SendSyncToWebsite(c)
 
 		// Sync ArbeitsstundenDB
-		// TODO:
+		// DONE:
+
+		var UserData jsonStruct = getUserData(MariaDB, PostgresDB)
+		checker := false
+
+		var finalUsers_Keycloak [1000]arbeitstundenInput
+		counter := 0
+
+		for _, KeycloakUser := range UserData.Keycloak {
+			for _, arbeitsUser := range UserData.Arbeitsstunden {
+				// Wer ist nicht da?
+				// Ist die Person Aktiv?
+				if KeycloakUser.EMAIL == arbeitsUser.EMAIL {
+					checker = true
+					break
+				}
+			}
+			if checker == false {
+				finalUsers_Keycloak[counter] = arbeitstundenInput{
+					first_name: KeycloakUser.FIRST_NAME,
+					last_name:  KeycloakUser.LAST_NAME,
+					email:      KeycloakUser.EMAIL,
+					user_id:    uuid.New(),
+					member_id:  uuid.New(),
+					reduction:  0,
+					role:       "USER",
+					password:   "$2a$10$ljHyydV.cFZAZJCsWWbmFOuvjiKnj1lOw.3ynYkl6GOTOF8OTxoaG",
+				}
+				counter++
+			}
+			checker = false
+		}
+
+		for _, websiteUser := range UserData.Website {
+			for _, FutureArbeitsUser := range finalUsers_Keycloak {
+				if websiteUser.EMAIL == FutureArbeitsUser.email {
+					status := getStatus(websiteUser.STATUS)
+					FutureArbeitsUser.status = status
+					break
+				}
+			}
+		}
+
+		t := time.Now()
+		year := t.Year()
+
+		print(counter)
+		print("\n")
+
+		// create new member
+		for _, newUser := range finalUsers_Keycloak[:counter] {
+			query := "INSERT INTO member(id,user_id,first_name,last_name) VALUES ($1, $2, $3, $4);"
+			_, err := PostgresDB.Exec(query, newUser.member_id, newUser.user_id, newUser.first_name, newUser.last_name)
+			if err != nil {
+				print(err.Error() + "    ")
+				print("Member Error: " + newUser.first_name + " " + newUser.last_name + "\n")
+				continue
+			}
+
+			query = "INSERT INTO user_(id,member_id,email,password,role) VALUES ($1, $2, $3, $4, $5);"
+			_, err = PostgresDB.Exec(query, newUser.user_id, newUser.member_id, newUser.email, newUser.password, newUser.role)
+			if err != nil {
+				print("User Error: " + newUser.first_name + " " + newUser.last_name + " " + newUser.user_id.String() + " " + newUser.member_id.String() + "\n")
+				print(err.Error())
+				continue
+			}
+
+			query = "INSERT INTO reduction(id,season,member_id,status,reduction) VALUES ($1, $2, $3, $4, $5);"
+			_, err = PostgresDB.Exec(query, newUser.user_id, year, newUser.member_id, newUser.status, newUser.reduction)
+			if err != nil {
+				print("Reduction Error: " + newUser.first_name + " " + newUser.last_name + newUser.user_id.String() + newUser.member_id.String() + "\n")
+				print(err.Error())
+				continue
+			}
+		}
 
 		// Sync Bierkasse
 		// TODO:
 
-		return c.SendString("TODO: Sync all Users")
+		return c.SendString("Synced all Users")
 	})
 
 	log.Fatal(app.Listen(":5000"))

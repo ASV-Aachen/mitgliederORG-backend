@@ -56,7 +56,7 @@ func Get_UserID(token string) (string, error) {
 	req.Header.Add("Authorization", "Bearer "+token)
 
 	resp, _ := http.DefaultClient.Do(req)
-	
+
 	defer resp.Body.Close()
 
 	if resp.Status != "200 OK" {
@@ -104,7 +104,6 @@ func Get_UserGroups(token string, ID string) (GroupToken, error) {
 func Check_IsUserPartOfGroup(gruppen [5]string, UserGruppen GroupToken) bool {
 	for _, groupName := range gruppen {
 		for _, token := range UserGruppen {
-			log.Default().Printf(token.Name)
 			if groupName == token.Name {
 				return true
 			}

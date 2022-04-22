@@ -1,5 +1,9 @@
 package main
 
+import (
+	uuid "github.com/google/uuid"
+)
+
 // ------------------------------------------------------------------------------------------------------------
 // SQL Structs
 type jsonStruct struct {
@@ -33,4 +37,16 @@ type arbeitsstunden struct {
 	FIRST_NAME string `json:"first_name"`
 	LAST_NAME  string `json:"last_name"`
 	EMAIL      string `json:"email"`
+}
+
+type arbeitstundenInput struct{
+	user_id 	uuid.UUID
+	member_id 	uuid.UUID
+	first_name 	string
+	last_name 	string
+	status 		string
+	email	 	string
+	reduction 	int
+	role 		string
+	password	string
 }
